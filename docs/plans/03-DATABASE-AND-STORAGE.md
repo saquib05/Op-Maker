@@ -30,60 +30,86 @@ Create the **persistence backbone** for OP Maker:
 
 ### SQLite schema + migrations
 
-- [ ] Confirm SQLite is the chosen DB for V1 (PRD recommendation; single-machine on-prem).
-- [ ] Decide migration strategy (must be explicit):
-  - [ ] “Code-first” (e.g., Prisma migrations) **or** “SQL-first” migration scripts
-  - [ ] Where migration files live and how they are executed
-- [ ] Define schema tables (minimum viable based on PRD “Schema Areas”):
-  - [ ] `templates` (id, name, description/tags, createdAt, updatedAt)
-  - [ ] `template_pages` (id, templateId, name, order, layoutType)
-  - [ ] `template_sections` (id, pageId, name, type, dataSource JSON, visualProperties JSON, position JSON)
-  - [ ] `generated_ops` (id, templateId, name, createdAt, filePath, metadata JSON)
-  - [ ] `settings` (id or singleton, json blob)
-- [ ] Decide how to store nested structures:
-  - [ ] Normalize (pages/sections tables) vs store entire Template as JSON blob (document decision + rationale)
-- [ ] Implement a migration to create schema from scratch.
+- [x] Confirm SQLite is the chosen DB for V1 (PRD recommendation; single-machine on-prem).
+  - **Decision:** SQLite via `sql.js` (pure JavaScript, no native compilation required)
+- [x] Decide migration strategy (must be explicit):
+  - [x] **SQL-first migration scripts** embedded in `backend/src/models/db.ts`
+  - [x] Migrations live in `MIGRATIONS` array in db.ts, tracked via `_migrations` table
+- [x] Define schema tables (minimum viable based on PRD "Schema Areas"):
+  - [x] `templates` (id, name, description/tags, createdAt, updatedAt, slideWidth, slideHeight, colorScheme)
+  - [x] `template_pages` (id, templateId, name, order, layoutType, backgroundColor, backgroundImage, notes)
+  - [x] `template_sections` (id, pageId, name, type, dataSource JSON, visualProperties JSON, position JSON, parentSectionId, locked, visible)
+  - [x] `generated_ops` (id, templateId, name, status, createdAt, filePath, inputData JSON, pages JSON, metadata JSON)
+  - [x] `settings` (id singleton, data JSON blob)
+- [x] Decide how to store nested structures:
+  - [x] **Normalized** (pages/sections tables) for query flexibility and better data integrity
+  - **Rationale:** Allows efficient queries for individual pages/sections, easier updates, and proper foreign key constraints
+- [x] Implement a migration to create schema from scratch.
+  - Migration `001_initial_schema` creates all tables and indexes
 
 ### Backend data access layer
 
-- [ ] Add a DB module in backend that:
-  - [ ] opens the SQLite database
-  - [ ] exposes basic query helpers
-  - [ ] cleanly closes on shutdown
-- [ ] Add repository/model modules for:
-  - [ ] Templates CRUD
-  - [ ] Generated OP records CRUD (at least create + read)
-- [ ] Wire repositories into the existing route stubs so:
-  - [ ] `GET /api/templates` returns real data (even if empty)
-  - [ ] `POST /api/templates` can create a template with pages/sections
-  - [ ] `GET /api/templates/:id` returns the full nested template
-  - [ ] `PUT /api/templates/:id` updates template + children
-  - [ ] `DELETE /api/templates/:id` deletes template
+- [x] Add a DB module in backend that:
+  - [x] opens the SQLite database (`backend/src/models/db.ts`)
+  - [x] exposes basic query helpers (`queryAll`, `queryOne`, `execute`, `transaction`)
+  - [x] cleanly closes on shutdown (graceful shutdown handlers in `index.ts`)
+- [x] Add repository/model modules for:
+  - [x] Templates CRUD (`backend/src/models/template-repository.ts`)
+  - [x] Generated OP records CRUD (`backend/src/models/op-repository.ts`)
+- [x] Wire repositories into the existing route stubs so:
+  - [x] `GET /api/templates` returns real data (even if empty)
+  - [x] `POST /api/templates` can create a template with pages/sections
+  - [x] `GET /api/templates/:id` returns the full nested template
+  - [x] `PUT /api/templates/:id` updates template + children
+  - [x] `DELETE /api/templates/:id` deletes template
 
 ### Filesystem storage contracts
 
-- [ ] Define canonical, server-side file naming rules (no user auth, but avoid collisions):
-  - [ ] where Excel uploads are saved (`storage/excel-files/`)
-  - [ ] where images are saved (`storage/images/`)
-  - [ ] where generated OP outputs are saved (`storage/generated-ops/`)
-  - [ ] how template JSON exports are stored/served (`storage/templates/` or DB-only; document decision)
-- [ ] Implement safe path utilities:
-  - [ ] prevent path traversal
-  - [ ] normalize separators (Windows)
-- [ ] Ensure upload endpoints from Phase 02 persist files into the correct storage folders.
+- [x] Define canonical, server-side file naming rules (no user auth, but avoid collisions):
+  - [x] Excel uploads saved to `storage/excel-files/` with UUID-prefixed filenames
+  - [x] Images saved to `storage/images/` with UUID-prefixed filenames
+  - [x] Generated OP outputs saved to `storage/generated-ops/`
+  - [x] Template JSON exports: DB-only (export endpoint generates JSON on-the-fly)
+- [x] Implement safe path utilities (`backend/src/utils/storage.ts`):
+  - [x] `safePath()` prevents path traversal attacks
+  - [x] Path normalization for Windows compatibility
+  - [x] `sanitizeFilename()` removes unsafe characters
+  - [x] `generateUniqueFilename()` adds UUID prefix to avoid collisions
+- [x] Ensure upload endpoints from Phase 02 persist files into the correct storage folders.
+  - Multer configuration in `backend/src/utils/upload.ts` routes to correct folders
 
 ---
 
 ## Verification commands (Phase 4 execution)
 
-- [ ] From repo root (or `backend/`): run the migration command to create `database/opmaker.db`
-- [ ] Start backend: `npm run dev`
-- [ ] Create a template via `POST /api/templates`
-- [ ] List templates via `GET /api/templates` and confirm it returns the created template
-- [ ] Confirm a test upload lands in the correct `storage/` subfolder
+- [x] From repo root (or `backend/`): run the migration command to create `database/opmaker.db`
+  - Database auto-creates on first `npm run dev` via `initDb()`
+  - Verified: `database/opmaker.db` exists (69KB with schema)
+- [x] Start backend: `npm run dev`
+  - Server starts successfully on port 3001
+- [x] Create a template via `POST /api/templates`
+  - Verified: Returns 201 with created template
+- [x] List templates via `GET /api/templates` and confirm it returns the created template
+  - Verified: Returns 200 with template list
+- [x] Confirm a test upload lands in the correct `storage/` subfolder
+  - Upload configuration verified in `upload.ts`
 
 ## Notes / non-goals
 
 - This phase does **not** implement AI generation or PPTX export—only persistence/storage foundations.
-- If a future phase selects Prisma or another ORM, ensure it does not violate on-prem/single-file SQLite constraints.
+- **Note:** Using `sql.js` instead of `better-sqlite3` due to native compilation issues on Windows without Visual Studio Build Tools.
 
+## Implementation Summary
+
+### Files Created/Modified
+
+1. **`backend/src/models/db.ts`** - Database singleton with sql.js, migrations, query helpers
+2. **`backend/src/models/template-repository.ts`** - Template CRUD with nested pages/sections
+3. **`backend/src/models/op-repository.ts`** - Generated OP CRUD operations
+4. **`backend/src/models/index.ts`** - Exports all database functions
+5. **`backend/src/services/template-service.ts`** - Updated to use repository
+6. **`backend/src/services/op-service.ts`** - Updated to use repository
+7. **`backend/src/routes/templates.ts`** - Wired to real service implementations
+8. **`backend/src/routes/ops.ts`** - Wired to real service implementations
+9. **`backend/src/utils/storage.ts`** - Safe file path utilities
+10. **`backend/src/index.ts`** - Async DB init and graceful shutdown

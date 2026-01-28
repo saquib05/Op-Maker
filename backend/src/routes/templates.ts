@@ -1,8 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { notImplemented, success } from '../utils/response.js';
+import { success, error, ErrorCodes } from '../utils/response.js';
 import { validateBody, validateParams } from '../utils/validate.js';
 import { RequestWithId } from '../utils/request-logger.js';
+import { templateService } from '../services/template-service.js';
 
 export const templatesRouter = Router();
 
@@ -23,13 +24,19 @@ export const templateIdSchema = z.object({
 export const createTemplateSchema = z.object({
   name: z.string().min(1, 'Template name is required').max(255),
   description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  slideWidth: z.number().int().min(100).optional(),
+  slideHeight: z.number().int().min(100).optional(),
   pages: z
     .array(
       z.object({
         name: z.string().min(1),
-        order: z.number().int().min(0),
+        order: z.number().int().min(0).optional(),
         layoutType: z.string().optional(),
-        sections: z.array(z.any()).optional(), // Detailed section schema in Phase 03
+        backgroundColor: z.string().optional(),
+        backgroundImage: z.string().optional(),
+        notes: z.string().optional(),
+        sections: z.array(z.any()).optional(),
       })
     )
     .optional(),
@@ -44,8 +51,22 @@ export const updateTemplateSchema = createTemplateSchema.partial();
  * Schema for importing a template
  */
 export const importTemplateSchema = z.object({
-  template: z.any(), // Full template JSON; validated in service
+  template: z.object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    pages: z.array(z.any()).optional(),
+  }),
 });
+
+// ============================================
+// Async handler wrapper
+// ============================================
+
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+};
 
 // ============================================
 // Template Routes (PRD Section 8.2)
@@ -55,10 +76,14 @@ export const importTemplateSchema = z.object({
  * GET /api/templates
  * List all templates
  */
-templatesRouter.get('/', (req: Request, res: Response) => {
-  const requestId = (req as RequestWithId).requestId;
-  notImplemented(res, 'GET /api/templates', requestId);
-});
+templatesRouter.get(
+  '/',
+  asyncHandler(async (req: Request, res: Response) => {
+    const requestId = (req as RequestWithId).requestId;
+    const templates = await templateService.list();
+    success(res, templates, 200, requestId);
+  })
+);
 
 /**
  * POST /api/templates
@@ -67,10 +92,11 @@ templatesRouter.get('/', (req: Request, res: Response) => {
 templatesRouter.post(
   '/',
   validateBody(createTemplateSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, 'POST /api/templates', requestId);
-  }
+    const template = await templateService.create(req.body);
+    success(res, template, 201, requestId);
+  })
 );
 
 /**
@@ -80,10 +106,17 @@ templatesRouter.post(
 templatesRouter.get(
   '/:id',
   validateParams(templateIdSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, `GET /api/templates/${req.params.id}`, requestId);
-  }
+    const template = await templateService.getById(req.params.id);
+
+    if (!template) {
+      error(res, ErrorCodes.NOT_FOUND, 'Template not found', 404, undefined, requestId);
+      return;
+    }
+
+    success(res, template, 200, requestId);
+  })
 );
 
 /**
@@ -94,10 +127,17 @@ templatesRouter.put(
   '/:id',
   validateParams(templateIdSchema),
   validateBody(updateTemplateSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, `PUT /api/templates/${req.params.id}`, requestId);
-  }
+    const template = await templateService.update(req.params.id, req.body);
+
+    if (!template) {
+      error(res, ErrorCodes.NOT_FOUND, 'Template not found', 404, undefined, requestId);
+      return;
+    }
+
+    success(res, template, 200, requestId);
+  })
 );
 
 /**
@@ -107,10 +147,17 @@ templatesRouter.put(
 templatesRouter.delete(
   '/:id',
   validateParams(templateIdSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, `DELETE /api/templates/${req.params.id}`, requestId);
-  }
+    const deleted = await templateService.delete(req.params.id);
+
+    if (!deleted) {
+      error(res, ErrorCodes.NOT_FOUND, 'Template not found', 404, undefined, requestId);
+      return;
+    }
+
+    success(res, { deleted: true }, 200, requestId);
+  })
 );
 
 /**
@@ -120,10 +167,17 @@ templatesRouter.delete(
 templatesRouter.post(
   '/:id/duplicate',
   validateParams(templateIdSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, `POST /api/templates/${req.params.id}/duplicate`, requestId);
-  }
+    const template = await templateService.duplicate(req.params.id);
+
+    if (!template) {
+      error(res, ErrorCodes.NOT_FOUND, 'Template not found', 404, undefined, requestId);
+      return;
+    }
+
+    success(res, template, 201, requestId);
+  })
 );
 
 /**
@@ -133,10 +187,11 @@ templatesRouter.post(
 templatesRouter.post(
   '/import',
   validateBody(importTemplateSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, 'POST /api/templates/import', requestId);
-  }
+    const template = await templateService.importFromJson(req.body);
+    success(res, template, 201, requestId);
+  })
 );
 
 /**
@@ -146,8 +201,15 @@ templatesRouter.post(
 templatesRouter.get(
   '/:id/export',
   validateParams(templateIdSchema),
-  (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const requestId = (req as RequestWithId).requestId;
-    notImplemented(res, `GET /api/templates/${req.params.id}/export`, requestId);
-  }
+    const exportData = await templateService.exportToJson(req.params.id);
+
+    if (!exportData) {
+      error(res, ErrorCodes.NOT_FOUND, 'Template not found', 404, undefined, requestId);
+      return;
+    }
+
+    success(res, exportData, 200, requestId);
+  })
 );

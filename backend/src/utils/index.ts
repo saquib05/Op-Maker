@@ -15,3 +15,25 @@ export {
   toUploadedFileInfo,
 } from './upload.js';
 export type { UploadedFileInfo } from './upload.js';
+
+// File storage utilities
+export {
+  getStoragePath,
+  safePath,
+  validateStoragePath,
+  sanitizeFilename,
+  generateUniqueFilename,
+  generateTimestampedFilename,
+  ensureDirectory,
+  ensureStorageDirectories,
+  saveFile,
+  readFile,
+  deleteFile,
+  fileExists,
+  listFiles,
+  getFileStats,
+  moveFile,
+  copyFile,
+  getFullPath,
+} from './storage.js';
+export type { StorageCategory } from './storage.js';

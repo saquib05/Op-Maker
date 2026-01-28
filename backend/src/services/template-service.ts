@@ -2,10 +2,20 @@
  * Template Service
  * Handles business logic for template management
  *
- * Phase 03 will implement actual persistence logic.
+ * Uses the template repository for data access.
  */
 
-import type { Template } from '@op-maker/shared';
+import type { Template, CreateTemplateInput, UpdateTemplateInput } from '@op-maker/shared';
+import {
+  listTemplates,
+  getTemplateById,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  duplicateTemplate,
+  exportTemplateToJson,
+  importTemplateFromJson,
+} from '../models/index.js';
 
 /**
  * Service interface for template operations
@@ -13,8 +23,8 @@ import type { Template } from '@op-maker/shared';
 export interface TemplateService {
   list(): Promise<Template[]>;
   getById(id: string): Promise<Template | null>;
-  create(data: Partial<Template>): Promise<Template>;
-  update(id: string, data: Partial<Template>): Promise<Template | null>;
+  create(data: CreateTemplateInput): Promise<Template>;
+  update(id: string, data: UpdateTemplateInput): Promise<Template | null>;
   delete(id: string): Promise<boolean>;
   duplicate(id: string): Promise<Template | null>;
   exportToJson(id: string): Promise<object | null>;
@@ -22,47 +32,43 @@ export interface TemplateService {
 }
 
 /**
- * Template service placeholder implementation
- * Returns stub data; real implementation in Phase 03
+ * Template service implementation using SQLite repository
  */
 export const templateService: TemplateService = {
   async list() {
-    // TODO: Implement in Phase 03 with SQLite
-    return [];
+    return listTemplates();
   },
 
-  async getById(_id) {
-    // TODO: Implement in Phase 03 with SQLite
-    return null;
+  async getById(id) {
+    return getTemplateById(id);
   },
 
-  async create(_data) {
-    // TODO: Implement in Phase 03 with SQLite
-    throw new Error('Not implemented');
+  async create(data) {
+    return createTemplate(data);
   },
 
-  async update(_id, _data) {
-    // TODO: Implement in Phase 03 with SQLite
-    return null;
+  async update(id, data) {
+    return updateTemplate(id, data);
   },
 
-  async delete(_id) {
-    // TODO: Implement in Phase 03 with SQLite
-    return false;
+  async delete(id) {
+    return deleteTemplate(id);
   },
 
-  async duplicate(_id) {
-    // TODO: Implement in Phase 03 with SQLite
-    return null;
+  async duplicate(id) {
+    return duplicateTemplate(id);
   },
 
-  async exportToJson(_id) {
-    // TODO: Implement in Phase 03 with SQLite
-    return null;
+  async exportToJson(id) {
+    return exportTemplateToJson(id);
   },
 
-  async importFromJson(_json) {
-    // TODO: Implement in Phase 03 with SQLite
-    throw new Error('Not implemented');
+  async importFromJson(json) {
+    // Validate the import structure
+    const importData = json as { template?: CreateTemplateInput };
+    if (!importData.template || !importData.template.name) {
+      throw new Error('Invalid import format: template.name is required');
+    }
+    return importTemplateFromJson(importData as { template: CreateTemplateInput });
   },
 };

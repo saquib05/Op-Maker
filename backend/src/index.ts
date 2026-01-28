@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config/env.js';
 import { apiRouter } from './routes/index.js';
-import { requestLogger, error, ErrorCodes, RequestWithId } from './utils/index.js';
+import { requestLogger, error, ErrorCodes, RequestWithId, ensureStorageDirectories } from './utils/index.js';
+import { initDb, closeDb } from './models/index.js';
 
 // Initialize Express app
 const app = express();
@@ -103,8 +104,23 @@ app.use(
 // Start Server
 // ============================================
 
-app.listen(config.port, () => {
-  console.log(`
+// ============================================
+// Async Server Startup
+// ============================================
+
+let server: ReturnType<typeof app.listen>;
+
+async function startServer() {
+  try {
+    // Initialize database (singleton connection)
+    await initDb();
+
+    // Ensure storage directories exist
+    ensureStorageDirectories();
+
+    // Start HTTP server
+    server = app.listen(config.port, () => {
+      console.log(`
 ╔════════════════════════════════════════════════╗
 ║          OP Maker Backend Server               ║
 ╠════════════════════════════════════════════════╣
@@ -112,7 +128,39 @@ app.listen(config.port, () => {
 ║  📦 Environment: ${config.isDev ? 'development' : 'production'}               ║
 ║  🔗 API: http://localhost:${config.port}/api            ║
 ╚════════════════════════════════════════════════╝
-  `);
-});
+      `);
+    });
+  } catch (err) {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+// ============================================
+// Graceful Shutdown
+// ============================================
+
+const gracefulShutdown = (signal: string) => {
+  console.log(`\n⚠️ Received ${signal}. Shutting down gracefully...`);
+
+  server.close(() => {
+    console.log('🛑 HTTP server closed');
+    closeDb();
+    console.log('✅ Shutdown complete');
+    process.exit(0);
+  });
+
+  // Force exit if graceful shutdown takes too long
+  setTimeout(() => {
+    console.error('⚠️ Forced shutdown after timeout');
+    closeDb();
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

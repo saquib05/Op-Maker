@@ -2,10 +2,19 @@
  * OP Service
  * Handles business logic for managing generated OPs (Opportunity Profiles)
  *
- * Later phases will implement actual persistence and editing logic.
+ * Uses the OP repository for data access.
  */
 
-import type { GeneratedOP } from '@op-maker/shared';
+import type { GeneratedOP, Page } from '@op-maker/shared';
+import {
+  listGeneratedOPs,
+  listGeneratedOPsByTemplate,
+  getGeneratedOPById,
+  createGeneratedOP,
+  updateGeneratedOP,
+  deleteGeneratedOP,
+} from '../models/index.js';
+import type { CreateGeneratedOPInput, UpdateGeneratedOPInput } from '../models/index.js';
 
 /**
  * AI redesign request
@@ -21,27 +30,46 @@ export interface AiRedesignRequest {
  * Service interface for OP operations
  */
 export interface OpService {
+  list(): Promise<GeneratedOP[]>;
+  listByTemplate(templateId: string): Promise<GeneratedOP[]>;
   getById(id: string): Promise<GeneratedOP | null>;
-  update(id: string, data: Partial<GeneratedOP>): Promise<GeneratedOP | null>;
+  create(data: CreateGeneratedOPInput): Promise<GeneratedOP>;
+  update(id: string, data: UpdateGeneratedOPInput): Promise<GeneratedOP | null>;
+  delete(id: string): Promise<boolean>;
   aiRedesign(request: AiRedesignRequest): Promise<object>;
 }
 
 /**
- * OP service placeholder implementation
+ * OP service implementation using SQLite repository
  */
 export const opService: OpService = {
-  async getById(_id) {
-    // TODO: Implement in later phases
-    return null;
+  async list() {
+    return listGeneratedOPs();
   },
 
-  async update(_id, _data) {
-    // TODO: Implement in later phases
-    return null;
+  async listByTemplate(templateId) {
+    return listGeneratedOPsByTemplate(templateId);
+  },
+
+  async getById(id) {
+    return getGeneratedOPById(id);
+  },
+
+  async create(data) {
+    return createGeneratedOP(data);
+  },
+
+  async update(id, data) {
+    return updateGeneratedOP(id, data);
+  },
+
+  async delete(id) {
+    return deleteGeneratedOP(id);
   },
 
   async aiRedesign(_request) {
     // TODO: Implement in later phases with Gemini integration
-    throw new Error('Not implemented');
+    // This will call the Gemini API to redesign the layout
+    throw new Error('AI redesign not implemented yet - coming in a later phase');
   },
 };
