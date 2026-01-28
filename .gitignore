@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+database/*.db
+database/*.sqlite
+database/*.db-journal
+
+# Storage (user files)
+storage/templates/*
+storage/generated-ops/*
+storage/excel-files/*
+storage/images/*
+!storage/**/.gitkeep
+
+# Test coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
